@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Descarga Inventarios – Proveedora</title>
+
+<!-- Librerías -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, getDocs, query, where, getDocs as getDocsQuery } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCK5nb6u2CGRJ8AB1aPlRn54b97bdeAFeM",
+  authDomain: "inventariopv-643f1.firebaseapp.com",
+  projectId: "inventariopv-643f1",
+  storageBucket: "inventariopv-643f1.appspot.com",
+  messagingSenderId: "96242533231",
+  appId: "1:96242533231:web:aae75a18fbaf9840529e9a"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+async function cargarInventarios() {
+  const sucursal = document.getElementById("sucursal").value;
+  const usuario = document.getElementById("usuario").value;
+  if (!sucursal || !usuario) {
+    alert("Selecciona sucursal y usuario");
+    return;
+  }
+
+  const snap = await getDocs(collection(db, "inventarios", sucursal, "usuarios", usuario, "escaneos"));
+  const data = [];
+
+  for (const d of snap.docs) {
+    const r = d.data();
+    let costo = "N/D";
+
+    try {
+      // Buscar producto donde codigoBarra == r.codigo
+      const q = query(collection(db, "productos"), where("codigoBarra", "==", r.codigo));
+      const qSnap = await getDocsQuery(q);
+      if (!qSnap.empty) {
+        const prod = qSnap.docs[0].data();
+        costo = prod.costoSinImpuesto ?? "N/D";
+      }
+    } catch (e) {
+      console.warn("Error al obtener costo:", r.codigo, e);
+    }
+
+    data.push({
+      codigo: r.codigo,
+      descripcion: r.descripcion,
+      cantidad: r.cantidad,
+      fecha: r.fecha,
+      usuario: r.usuario,
+      sucursal: r.sucursal,
+      costo_sin_impuesto: costo
+    });
+  }
+
+  if (data.length === 0) {
+    alert("Sin registros.");
+    return;
+  }
+
+  // Mostrar tabla
+  const tbody = document.getElementById("tabla");
+  tbody.innerHTML = data
+    .map(
+      (r, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${r.codigo}</td>
+        <td>${r.descripcion}</td>
+        <td>${r.cantidad}</td>
+        <td>${r.fecha}</td>
+        <td>${r.usuario}</td>
+        <td>${r.sucursal}</td>
+        <td>${r.costo_sin_impuesto}</td>
+      </tr>`
+    )
+    .join("");
+
+  window.dataInventario = data;
+}
+
+function descargarExcel() {
+  if (!window.dataInventario) {
+    alert("Primero carga los datos");
+    return;
+  }
+
+  const ws = XLSX.utils.json_to_sheet(window.dataInventario);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+
+  const nombre = "Inventario_" + new Date().toISOString().slice(0, 10) + ".xlsx";
+  XLSX.writeFile(wb, nombre);
+}
+
+window.cargarInventarios = cargarInventarios;
+window.descargarExcel = descargarExcel;
+</script>
+</head>
+
+<body style="font-family:sans-serif; padding:20px;">
+  <h1>Descarga de Inventarios</h1>
+
+  <label>Sucursal:
+    <select id="sucursal">
+      <option>Bodega Cigarro</option>
+      <option>Ruta 1</option>
+      <option>Ruta 2</option>
+    </select>
+  </label>
+
+  <label>Usuario:
+    <select id="usuario">
+      <option>Blanca</option><option>Lizandro</option><option>Edgardo</option>
+      <option>Fernanda</option><option>Esmeralda</option><option>Gibran</option>
+      <option>Roberto</option><option>Caleb</option>
+    </select>
+  </label>
+
+  <button onclick="cargarInventarios()">Cargar</button>
+  <button onclick="descargarExcel()">Descargar Excel</button>
+
+  <table border="1" style="margin-top:20px;width:100%;border-collapse:collapse">
+    <thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>Cantidad</th><th>Fecha</th><th>Usuario</th><th>Sucursal</th></tr></thead>
+    <tbody id="tabla"></tbody>
+  </table>
+</body>
+</html>
