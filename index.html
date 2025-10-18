@@ -24,39 +24,72 @@ const db = getFirestore(app);
 async function cargarInventarios() {
   const sucursal = document.getElementById("sucursal").value;
   const usuario = document.getElementById("usuario").value;
-  if (!sucursal || !usuario) {
-    alert("Selecciona sucursal y usuario");
+  if (!sucursal) {
+    alert("Selecciona una sucursal");
     return;
   }
 
-  const snap = await getDocs(collection(db, "inventarios", sucursal, "usuarios", usuario, "escaneos"));
-  const data = [];
+  let data = [];
 
-  for (const d of snap.docs) {
-    const r = d.data();
-    let costo = "N/D";
+  // Si el usuario es "Todos", recorrer todas las subcolecciones de usuarios
+  if (usuario === "Todos") {
+    const usuarios = ["Blanca","Lizandro","Edgardo","Fernanda","Esmeralda","Gibran","Roberto","Caleb"];
+    for (const u of usuarios) {
+      const snap = await getDocs(collection(db, "inventarios", sucursal, "usuarios", u, "escaneos"));
+      for (const d of snap.docs) {
+        const r = d.data();
+        let costo = "N/D";
 
-    try {
-      // Buscar producto donde codigoBarra == r.codigo
-      const q = query(collection(db, "productos"), where("codigoBarra", "==", r.codigo));
-      const qSnap = await getDocsQuery(q);
-      if (!qSnap.empty) {
-        const prod = qSnap.docs[0].data();
-        costo = prod.costoSinImpuesto ?? "N/D";
+        try {
+          const q = query(collection(db, "productos"), where("codigoBarra", "==", r.codigo));
+          const qSnap = await getDocsQuery(q);
+          if (!qSnap.empty) {
+            const prod = qSnap.docs[0].data();
+            costo = prod.costoSinImpuesto ?? "N/D";
+          }
+        } catch (e) {
+          console.warn("Error al obtener costo:", r.codigo, e);
+        }
+
+        data.push({
+          codigo: r.codigo,
+          descripcion: r.descripcion,
+          cantidad: r.cantidad,
+          fecha: r.fecha,
+          usuario: r.usuario || u,
+          sucursal: r.sucursal || sucursal,
+          costo_sin_impuesto: costo
+        });
       }
-    } catch (e) {
-      console.warn("Error al obtener costo:", r.codigo, e);
     }
+  } else {
+    // Solo el usuario seleccionado
+    const snap = await getDocs(collection(db, "inventarios", sucursal, "usuarios", usuario, "escaneos"));
+    for (const d of snap.docs) {
+      const r = d.data();
+      let costo = "N/D";
 
-    data.push({
-      codigo: r.codigo,
-      descripcion: r.descripcion,
-      cantidad: r.cantidad,
-      fecha: r.fecha,
-      usuario: r.usuario,
-      sucursal: r.sucursal,
-      costo_sin_impuesto: costo
-    });
+      try {
+        const q = query(collection(db, "productos"), where("codigoBarra", "==", r.codigo));
+        const qSnap = await getDocsQuery(q);
+        if (!qSnap.empty) {
+          const prod = qSnap.docs[0].data();
+          costo = prod.costoSinImpuesto ?? "N/D";
+        }
+      } catch (e) {
+        console.warn("Error al obtener costo:", r.codigo, e);
+      }
+
+      data.push({
+        codigo: r.codigo,
+        descripcion: r.descripcion,
+        cantidad: r.cantidad,
+        fecha: r.fecha,
+        usuario: r.usuario || usuario,
+        sucursal: r.sucursal || sucursal,
+        costo_sin_impuesto: costo
+      });
+    }
   }
 
   if (data.length === 0) {
@@ -84,7 +117,6 @@ async function cargarInventarios() {
 
   window.dataInventario = data;
 }
-
 function descargarExcel() {
   if (!window.dataInventario) {
     alert("Primero carga los datos");
@@ -115,11 +147,12 @@ window.descargarExcel = descargarExcel;
   </label>
 
   <label>Usuario:
-    <select id="usuario">
-      <option>Blanca</option><option>Lizandro</option><option>Edgardo</option>
-      <option>Fernanda</option><option>Esmeralda</option><option>Gibran</option>
-      <option>Roberto</option><option>Caleb</option>
-    </select>
+<select id="usuario">
+  <option>Todos</option>
+  <option>Blanca</option><option>Lizandro</option><option>Edgardo</option>
+  <option>Fernanda</option><option>Esmeralda</option><option>Gibran</option>
+  <option>Roberto</option><option>Caleb</option>
+</select>
   </label>
 
   <button onclick="cargarInventarios()">Cargar</button>
